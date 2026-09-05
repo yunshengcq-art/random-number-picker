@@ -12,7 +12,8 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
 body {
-  background: #111827; color: #f8fafc; overflow: hidden;
+  background: radial-gradient(circle at 50% 42%, #1e293b 0%, #111827 58%);
+  color: #f8fafc; overflow: hidden;
   font-family: system-ui, -apple-system, "PingFang SC", "Noto Sans SC", sans-serif;
   user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
   touch-action: manipulation; cursor: pointer;
@@ -25,12 +26,12 @@ body.showing-result #resultScene { display: flex; }
 #wheelCanvas { display: block; }
 #pointer {
   position: absolute; top: -16px; left: 50%; transform: translateX(-50%); z-index: 2;
-  width: 0; height: 0; border: 16px solid transparent; border-top: 30px solid #f8fafc; border-bottom: 0;
-  filter: drop-shadow(0 2px 4px rgb(0 0 0 / .4));
+  width: 0; height: 0; border: 16px solid transparent; border-top: 30px solid #f472b6; border-bottom: 0;
+  filter: drop-shadow(0 2px 5px rgb(15 23 42 / .45));
 }
 #wheelCenterNum {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-weight: 900; font-variant-numeric: tabular-nums; pointer-events: none;
+  font-weight: 900; font-variant-numeric: tabular-nums; pointer-events: none; color: #1e293b;
 }
 #wheelHint, #resultHint {
   position: fixed; bottom: max(28px, env(safe-area-inset-bottom)); left: 0; right: 0;
@@ -45,10 +46,11 @@ body.showing-result #resultScene { display: flex; }
 #gearBtn svg { width: 22px; height: 22px; fill: #f8fafc; }
 body.showing-result #gearBtn { display: none; }
 #resultNum {
-  font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; color: #f8fafc;
-  text-shadow: 0 8px 40px rgb(0 0 0 / .45); animation: pop .35s ease-out;
+  font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; color: #1e293b;
+  text-shadow: 0 10px 30px rgb(15 23 42 / .18); animation: pop .35s ease-out;
 }
 @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+body.showing-result #resultHint { color: rgb(30 41 59 / .55); }
 dialog {
   width: min(92vw, 400px); border: 0; border-radius: 16px; padding: 20px;
   background: #1f2937; color: #f8fafc; cursor: default;
@@ -209,7 +211,13 @@ const KEY_SETTINGS = 'rp.settings.v1';
 const KEY_HISTORY = 'rp.history.v1';
 const KEY_POOL = 'rp.pool.v1';
 const HISTORY_CAP = 20;
-const PALETTE = ['#ef4444', '#f59e0b', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'];
+const PALETTE = ['#f87171', '#fb923c', '#fbbf24', '#4ade80', '#2dd4bf', '#60a5fa', '#a78bfa', '#f472b6'];
+
+function mixWhite(hex, t) {
+  const v = parseInt(hex.slice(1), 16);
+  const f = (x) => Math.round(x + (255 - x) * t);
+  return `rgb(${f((v >> 16) & 255)}, ${f((v >> 8) & 255)}, ${f(v & 255)})`;
+}
 
 const store = createStorage();
 const state = {
@@ -268,20 +276,82 @@ function resizeCanvas() {
 
 function drawWheel(rotation) {
   const c = cssSize / 2;
-  const R = c - 4;
+  const R = c - 6;
   ctx.clearRect(0, 0, cssSize, cssSize);
+
+  // 柔和投影（跟随圆形轮廓）
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(c, c, R, 0, 2 * Math.PI);
+  ctx.shadowColor = 'rgba(15, 23, 42, 0.55)';
+  ctx.shadowBlur = cssSize * 0.055;
+  ctx.shadowOffsetY = cssSize * 0.018;
+  ctx.fillStyle = '#f8fafc';
+  ctx.fill();
+  ctx.restore();
+
+  // 白色外圈
+  ctx.beginPath();
+  ctx.arc(c, c, R, 0, 2 * Math.PI);
+  ctx.fillStyle = '#f8fafc';
+  ctx.fill();
+
+  const inner = R - cssSize * 0.022;
+  const hubR = cssSize * 0.21;
+  // 糖果渐变扇区：中心饱和 → 外缘浅粉彩
   const n = PALETTE.length;
   for (let i = 0; i < n; i++) {
     const a0 = rotation + (i * 2 * Math.PI) / n;
     const a1 = a0 + (2 * Math.PI) / n;
-    ctx.beginPath(); ctx.moveTo(c, c); ctx.arc(c, c, R, a0, a1); ctx.closePath();
-    ctx.fillStyle = PALETTE[i]; ctx.fill();
+    const grad = ctx.createRadialGradient(c, c, hubR, c, c, inner);
+    grad.addColorStop(0, PALETTE[i]);
+    grad.addColorStop(1, mixWhite(PALETTE[i], 0.38));
+    ctx.beginPath(); ctx.moveTo(c, c); ctx.arc(c, c, inner, a0, a1); ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
   }
-  ctx.beginPath(); ctx.arc(c, c, R, 0, 2 * Math.PI);
-  ctx.lineWidth = Math.max(4, cssSize * 0.015); ctx.strokeStyle = '#f8fafc'; ctx.stroke();
-  ctx.beginPath(); ctx.arc(c, c, cssSize * 0.21, 0, 2 * Math.PI);
-  ctx.fillStyle = '#111827'; ctx.fill();
-  ctx.lineWidth = Math.max(2, cssSize * 0.008); ctx.strokeStyle = '#f8fafc'; ctx.stroke();
+  // 白色圆头分隔线
+  ctx.lineCap = 'round';
+  for (let i = 0; i < n; i++) {
+    const a = rotation + (i * 2 * Math.PI) / n;
+    ctx.beginPath();
+    ctx.moveTo(c + Math.cos(a) * hubR, c + Math.sin(a) * hubR);
+    ctx.lineTo(c + Math.cos(a) * inner, c + Math.sin(a) * inner);
+    ctx.lineWidth = Math.max(2, cssSize * 0.007);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.stroke();
+  }
+  // 玻璃质感高光弧（固定在屏幕上方，不随盘面旋转）
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(c, c, inner, 0, 2 * Math.PI);
+  ctx.clip();
+  const gloss = ctx.createLinearGradient(0, c - inner, 0, c + inner * 0.1);
+  gloss.addColorStop(0, 'rgba(255, 255, 255, 0.32)');
+  gloss.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  ctx.beginPath();
+  ctx.ellipse(c, c - inner * 0.22, inner * 0.96, inner * 0.6, 0, 0, 2 * Math.PI);
+  ctx.fillStyle = gloss;
+  ctx.fill();
+  ctx.restore();
+  // 白色中心圆盘（微渐变 + 柔影）
+  ctx.save();
+  ctx.shadowColor = 'rgba(15, 23, 42, 0.3)';
+  ctx.shadowBlur = cssSize * 0.03;
+  ctx.shadowOffsetY = cssSize * 0.012;
+  const hub = ctx.createRadialGradient(c, c - hubR * 0.4, hubR * 0.2, c, c, hubR);
+  hub.addColorStop(0, '#ffffff');
+  hub.addColorStop(1, '#e2e8f0');
+  ctx.beginPath();
+  ctx.arc(c, c, hubR, 0, 2 * Math.PI);
+  ctx.fillStyle = hub;
+  ctx.fill();
+  ctx.restore();
+  ctx.beginPath();
+  ctx.arc(c, c, hubR, 0, 2 * Math.PI);
+  ctx.lineWidth = Math.max(2, cssSize * 0.006);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.stroke();
 }
 
 function pickNumber() {
@@ -341,7 +411,9 @@ function showResult(result) {
   state.scene = 'result';
   document.body.classList.add('showing-result');
   els.resultNum.textContent = String(result);
-  els.resultScene.style.background = `hsl(${((result * 137.508) % 360).toFixed(1)} 65% 16%)`;
+  const hue = ((result * 137.508) % 360).toFixed(1);
+  els.resultScene.style.background = `hsl(${hue} 80% 88%)`;
+  els.resultNum.style.color = `hsl(${hue} 62% 30%)`;
   fitResultFont();
 }
 

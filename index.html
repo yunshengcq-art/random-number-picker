@@ -67,6 +67,7 @@ dialog h2.sub { margin-top: 18px; }
 .switchRow { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; font-size: 15px; }
 .switchRow input { width: 20px; height: 20px; accent-color: #4f46e5; }
 #poolRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0 2px; }
+#poolRow[hidden] { display: none; }
 #poolStatus { font-size: 13px; color: #9ca3af; }
 #historyList { list-style: none; max-height: 170px; overflow: auto; display: flex; flex-wrap: wrap; gap: 6px; }
 #historyList li { background: #111827; border: 1px solid #374151; padding: 4px 12px; border-radius: 999px; font-size: 14px; font-variant-numeric: tabular-nums; }
@@ -405,12 +406,17 @@ function openDialog() {
   els.dialog.showModal();
 }
 
-function updatePoolUI() {
-  const on = state.settings.noRepeat;
+function updatePoolUI(noRepeatPreview) {
+  const on = noRepeatPreview !== undefined ? noRepeatPreview : state.settings.noRepeat;
   els.poolRow.hidden = !on;
   if (!on) return;
-  const total = state.settings.max - state.settings.min + 1;
-  els.poolStatus.textContent = `剩余 ${state.pool ? state.pool.length : total} / ${total}`;
+  const v = validateRange(els.minInput.value, els.maxInput.value);
+  const min = v.ok ? v.min : state.settings.min;
+  const max = v.ok ? v.max : state.settings.max;
+  const total = max - min + 1;
+  const rangeMatchesSaved = v.ok && v.min === state.settings.min && v.max === state.settings.max;
+  const remain = rangeMatchesSaved && state.pool ? state.pool.length : total;
+  els.poolStatus.textContent = `剩余 ${remain} / ${total}`;
 }
 
 function bindEvents() {
@@ -418,7 +424,7 @@ function bindEvents() {
   window.addEventListener('resize', () => { resizeCanvas(); if (state.scene === 'result') fitResultFont(); });
   els.gearBtn.addEventListener('click', (e) => { e.stopPropagation(); openDialog(); });
   els.dialog.addEventListener('click', (e) => e.stopPropagation());
-  els.noRepeatChk.addEventListener('change', () => { els.poolRow.hidden = !els.noRepeatChk.checked; updatePoolUI(); });
+  els.noRepeatChk.addEventListener('change', () => updatePoolUI(els.noRepeatChk.checked));
   els.poolResetBtn.addEventListener('click', () => {
     state.pool = buildPool(state.settings.min, state.settings.max);
     saveState(); updatePoolUI(); showToast('抽取池已重置');

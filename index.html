@@ -203,6 +203,250 @@ function pushHistory(list, value, cap = 20) {
   return [value, ...list].slice(0, cap);
 }
 /*__PURE_END__*/
+
+const KEY_SETTINGS = 'rp.settings.v1';
+const KEY_HISTORY = 'rp.history.v1';
+const KEY_POOL = 'rp.pool.v1';
+const HISTORY_CAP = 20;
+const PALETTE = ['#ef4444', '#f59e0b', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'];
+
+const store = createStorage();
+const state = {
+  scene: 'wheel',
+  spinning: false,
+  settings: { min: 1, max: 100, noRepeat: false },
+  pool: null,
+  history: [],
+  rotation: -Math.PI / 2,
+};
+let cssSize = 0;
+
+const $ = (id) => document.getElementById(id);
+const els = {
+  canvas: $('wheelCanvas'), centerNum: $('wheelCenterNum'), resultNum: $('resultNum'),
+  resultScene: $('resultScene'), dialog: $('settingsDialog'), minInput: $('minInput'),
+  maxInput: $('maxInput'), noRepeatChk: $('noRepeatChk'), poolRow: $('poolRow'),
+  poolStatus: $('poolStatus'), poolResetBtn: $('poolResetBtn'), historyList: $('historyList'),
+  clearHistoryBtn: $('clearHistoryBtn'), saveBtn: $('saveBtn'), closeDialogBtn: $('closeDialogBtn'),
+  settingsError: $('settingsError'), toast: $('toast'), gearBtn: $('gearBtn'),
+};
+const ctx = els.canvas.getContext('2d');
+
+function loadState() {
+  const merged = { min: 1, max: 100, noRepeat: false, ...loadJSON(store, KEY_SETTINGS, {}) };
+  const v = validateRange(merged.min, merged.max);
+  if (v.ok) state.settings = merged;
+  const history = loadJSON(store, KEY_HISTORY, []);
+  state.history = Array.isArray(history) ? history.slice(0, HISTORY_CAP) : [];
+  if (state.settings.noRepeat) {
+    let pool = loadJSON(store, KEY_POOL, null);
+    if (!Array.isArray(pool) || !pool.every((n) => Number.isInteger(n))) pool = null;
+    pool = pool === null ? buildPool(state.settings.min, state.settings.max)
+      : pool.filter((n) => n >= state.settings.min && n <= state.settings.max);
+    state.pool = pool;
+  }
+}
+
+function saveState() {
+  saveJSON(store, KEY_SETTINGS, state.settings);
+  saveJSON(store, KEY_HISTORY, state.history);
+  if (state.pool) saveJSON(store, KEY_POOL, state.pool); else store.removeItem(KEY_POOL);
+}
+
+function resizeCanvas() {
+  cssSize = Math.floor(Math.min(window.innerWidth, window.innerHeight) * 0.86);
+  const dpr = window.devicePixelRatio || 1;
+  els.canvas.style.width = cssSize + 'px';
+  els.canvas.style.height = cssSize + 'px';
+  els.canvas.width = Math.round(cssSize * dpr);
+  els.canvas.height = Math.round(cssSize * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  els.centerNum.style.fontSize = Math.round(cssSize * 0.115) + 'px';
+  if (!state.spinning) drawWheel(state.rotation);
+}
+
+function drawWheel(rotation) {
+  const c = cssSize / 2;
+  const R = c - 4;
+  ctx.clearRect(0, 0, cssSize, cssSize);
+  const n = PALETTE.length;
+  for (let i = 0; i < n; i++) {
+    const a0 = rotation + (i * 2 * Math.PI) / n;
+    const a1 = a0 + (2 * Math.PI) / n;
+    ctx.beginPath(); ctx.moveTo(c, c); ctx.arc(c, c, R, a0, a1); ctx.closePath();
+    ctx.fillStyle = PALETTE[i]; ctx.fill();
+  }
+  ctx.beginPath(); ctx.arc(c, c, R, 0, 2 * Math.PI);
+  ctx.lineWidth = Math.max(4, cssSize * 0.015); ctx.strokeStyle = '#f8fafc'; ctx.stroke();
+  ctx.beginPath(); ctx.arc(c, c, cssSize * 0.21, 0, 2 * Math.PI);
+  ctx.fillStyle = '#111827'; ctx.fill();
+  ctx.lineWidth = Math.max(2, cssSize * 0.008); ctx.strokeStyle = '#f8fafc'; ctx.stroke();
+}
+
+function pickNumber() {
+  if (state.settings.noRepeat) return drawFromPool(state.pool);
+  return randomInt(state.settings.min, state.settings.max);
+}
+
+function startSpin() {
+  if (state.spinning) return;
+  if (state.settings.noRepeat && (!state.pool || !state.pool.length)) {
+    showToast('所有号码已抽完，请重置抽取池');
+    openDialog();
+    return;
+  }
+  const result = pickNumber();
+  if (state.settings.noRepeat) {
+    removeFromPool(state.pool, result);
+    saveJSON(store, KEY_POOL, state.pool);
+  }
+  state.history = pushHistory(state.history, result, HISTORY_CAP);
+  saveJSON(store, KEY_HISTORY, state.history);
+  renderHistory();
+
+  state.spinning = true;
+  els.centerNum.textContent = '';
+  const turns = 5 + Math.floor(Math.random() * 4);
+  const start = state.rotation;
+  const target = start + turns * 2 * Math.PI + Math.random() * 2 * Math.PI;
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const duration = reduced ? 900 : 3500;
+  const t0 = performance.now();
+  let lastFlash = 0;
+
+  function frame(now) {
+    const t = Math.min(1, (now - t0) / duration);
+    const eased = 1 - Math.pow(1 - t, 4);
+    state.rotation = start + (target - start) * eased;
+    if (t < 1) {
+      if (now - lastFlash > 80) {
+        els.centerNum.textContent = String(randomInt(state.settings.min, state.settings.max));
+        lastFlash = now;
+      }
+      drawWheel(state.rotation);
+      requestAnimationFrame(frame);
+    } else {
+      state.rotation = target;
+      drawWheel(state.rotation);
+      els.centerNum.textContent = String(result);
+      state.spinning = false;
+      setTimeout(() => showResult(result), 300);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+function showResult(result) {
+  state.scene = 'result';
+  document.body.classList.add('showing-result');
+  els.resultNum.textContent = String(result);
+  els.resultScene.style.background = `hsl(${((result * 137.508) % 360).toFixed(1)} 65% 16%)`;
+  fitResultFont();
+}
+
+function fitResultFont() {
+  const len = Math.max(1, (els.resultNum.textContent || '').length);
+  const size = Math.min(window.innerHeight * 0.72, (window.innerWidth * 0.92) / (0.62 * len));
+  els.resultNum.style.fontSize = size + 'px';
+}
+
+function showWheelScene() {
+  state.scene = 'wheel';
+  document.body.classList.remove('showing-result');
+  resizeCanvas();
+}
+
+function requestFullscreenOnce() {
+  if (document.fullscreenElement) return;
+  try {
+    const p = document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) { /* 不支持则静默降级 */ }
+}
+
+function onTap() {
+  if (els.dialog.open || state.spinning) return;
+  requestFullscreenOnce();
+  if (state.scene === 'result') showWheelScene();
+  startSpin();
+}
+
+let toastTimer = 0;
+function showToast(msg) {
+  els.toast.textContent = msg;
+  els.toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => els.toast.classList.remove('show'), 2200);
+}
+
+function renderHistory() {
+  els.historyList.innerHTML = '';
+  if (!state.history.length) {
+    const li = document.createElement('li');
+    li.className = 'empty';
+    li.textContent = '暂无记录';
+    els.historyList.appendChild(li);
+    return;
+  }
+  for (const n of state.history) {
+    const li = document.createElement('li');
+    li.textContent = n;
+    els.historyList.appendChild(li);
+  }
+}
+
+function openDialog() {
+  els.minInput.value = state.settings.min;
+  els.maxInput.value = state.settings.max;
+  els.noRepeatChk.checked = state.settings.noRepeat;
+  els.settingsError.textContent = '';
+  updatePoolUI();
+  renderHistory();
+  els.dialog.showModal();
+}
+
+function updatePoolUI() {
+  const on = state.settings.noRepeat;
+  els.poolRow.hidden = !on;
+  if (!on) return;
+  const total = state.settings.max - state.settings.min + 1;
+  els.poolStatus.textContent = `剩余 ${state.pool ? state.pool.length : total} / ${total}`;
+}
+
+function bindEvents() {
+  document.addEventListener('click', onTap);
+  window.addEventListener('resize', () => { resizeCanvas(); if (state.scene === 'result') fitResultFont(); });
+  els.gearBtn.addEventListener('click', (e) => { e.stopPropagation(); openDialog(); });
+  els.dialog.addEventListener('click', (e) => e.stopPropagation());
+  els.noRepeatChk.addEventListener('change', () => { els.poolRow.hidden = !els.noRepeatChk.checked; updatePoolUI(); });
+  els.poolResetBtn.addEventListener('click', () => {
+    state.pool = buildPool(state.settings.min, state.settings.max);
+    saveState(); updatePoolUI(); showToast('抽取池已重置');
+  });
+  els.clearHistoryBtn.addEventListener('click', () => { state.history = []; saveState(); renderHistory(); });
+  els.closeDialogBtn.addEventListener('click', () => els.dialog.close());
+  els.saveBtn.addEventListener('click', () => {
+    const v = validateRange(els.minInput.value.trim(), els.maxInput.value.trim());
+    if (!v.ok) { els.settingsError.textContent = v.error; return; }
+    const rangeChanged = v.min !== state.settings.min || v.max !== state.settings.max;
+    const noRepeatOn = els.noRepeatChk.checked;
+    state.settings = { min: v.min, max: v.max, noRepeat: noRepeatOn };
+    if (noRepeatOn && (rangeChanged || !state.pool)) state.pool = buildPool(v.min, v.max);
+    if (!noRepeatOn) state.pool = null;
+    saveState();
+    els.dialog.close();
+    showToast('设置已保存');
+  });
+}
+
+function init() {
+  loadState();
+  bindEvents();
+  renderHistory();
+  resizeCanvas();
+}
+
+init();
 </script>
 </body>
 </html>

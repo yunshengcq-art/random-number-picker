@@ -4,7 +4,7 @@
 
 ## 在线地址
 
-- **Cloudflare Pages（国内推荐）**：https://random-number-picker.pages.dev/
+- **Cloudflare Pages（国内推荐）**：https://random5261.pages.dev/
 - GitHub Pages（备用）：https://yunshengcq-art.github.io/random-number-picker/
 
 ## 手机安装（Android）

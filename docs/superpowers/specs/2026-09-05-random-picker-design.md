@@ -19,6 +19,7 @@
 - 手机端：将文件传到手机 → Chrome 打开 → 菜单「添加到主屏幕」→ 桌面图标全屏启动。
 - 内联 PWA manifest（data URL）+ theme-color + viewport-fit=cover。
 - 首次点击调用 Fullscreen API 请求全屏，失败时静默降级。
+- iOS 支持：apple-mobile-web-app-capable（standalone 启动）、black-translucent 状态栏、apple-touch-icon（180×180 PNG，项目根目录）、apple-web-app-title；`<dialog>` 在 iOS < 15.4 降级为属性式打开（CSS 固定居中）。iOS 需托管在 https 网址后经 Safari「添加到主屏幕」安装。
 
 ## 交互状态机
 

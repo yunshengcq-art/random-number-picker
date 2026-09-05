@@ -8,6 +8,19 @@
 2. 用 **Chrome** 打开该文件（文件管理器 → 用浏览器打开）。
 3. 菜单 → **添加到主屏幕**，之后从桌面图标全屏启动。
 
+## 手机安装（iOS / iPhone）
+
+iOS 无法从本地文件可靠地生成桌面图标，建议先托管成网址：
+
+1. 把项目里的 `index.html` 和 `apple-touch-icon.png` 上传到任意静态托管
+   （Cloudflare Pages / GitHub Pages / Netlify 等），得到一个 https 网址。
+2. iPhone 上用 **Safari** 打开该网址。
+3. 底部中间的**分享按钮** → 下滑找到 **「添加到主屏幕」** → 确认。
+4. 主屏出现「抽号器」图标，点开即无浏览器工具栏全屏运行（localStorage 数据不受 Safari 7 天清限影响）。
+
+> 若只是临时玩一下而不装成 app：AirDrop/微信把 `index.html` 存到 iPhone「文件」，
+> 在文件 App 里点开可预览运行，但体验打折（无全屏、无主屏图标）。
+
 > 想要更接近原生 app 的体验（安装提示、启动画面、生成 WebAPK），把 `index.html`
 > 上传到任意静态托管（Cloudflare Pages / GitHub Pages / Netlify 等）后用手机
 > 访问该网址再「安装应用」即可；此方式打开时需要联网（本地文件方式则完全离线可用）。

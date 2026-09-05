@@ -5,8 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#111827">
 <meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="抽号器">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>随机抽号器</title>
-<link rel="manifest" href='data:application/manifest+json,{"name":"随机抽号器","short_name":"抽号器","start_url":".","display":"fullscreen","background_color":"%23111827","theme_color":"%23111827","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect width=%27100%27 height=%27100%27 rx=%2720%27 fill=%27%234f46e5%27/%3E%3Ctext x=%2750%27 y=%2768%27 font-size=%2752%27 text-anchor=%27middle%27 fill=%27white%27 font-family=%27sans-serif%27%3E%E6%8A%BD%3C/text%3E%3C/svg%3E","sizes":"any","type":"image/svg+xml","purpose":"any"}]}'>
+<link rel="manifest" href='data:application/manifest+json,{"name":"随机抽号器","short_name":"抽号器","start_url":".","display":"fullscreen","background_color":"%23111827","theme_color":"%23111827","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect width=%27100%27 height=%27100%27 rx=%2720%27 fill=%27%234f46e5%27/%3E%3Ctext x=%2750%27 y=%2768%27 font-size=%2752%27 text-anchor=%27middle%27 fill=%27white%27 font-family=%27sans-serif%27%3E%E6%8A%BD%3C/text%3E%3C/svg%3E","sizes":"any","type":"image/svg+xml","purpose":"any"},{"src":"apple-touch-icon.png","sizes":"180x180","type":"image/png","purpose":"any maskable"}]}'>
 <style>
 :root { color-scheme: dark; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -51,6 +55,7 @@ body.showing-result #resultScene { display: flex; }
 @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 body.showing-result #resultHint { color: rgb(30 41 59 / .55); }
 dialog {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); margin: 0; z-index: 8;
   width: min(92vw, 400px); border: 0; border-radius: 16px; padding: 20px;
   background: #1f2937; color: #f8fafc; cursor: default;
 }
@@ -474,7 +479,13 @@ function openDialog() {
   els.settingsError.textContent = '';
   updatePoolUI();
   renderHistory();
-  els.dialog.showModal();
+  if (typeof els.dialog.showModal === 'function') els.dialog.showModal();
+  else els.dialog.setAttribute('open', '');
+}
+
+function closeDialog() {
+  if (typeof els.dialog.close === 'function' && els.dialog.open) els.dialog.close();
+  else els.dialog.removeAttribute('open');
 }
 
 function updatePoolUI(noRepeatPreview) {
@@ -501,7 +512,7 @@ function bindEvents() {
     saveState(); updatePoolUI(); showToast('抽取池已重置');
   });
   els.clearHistoryBtn.addEventListener('click', () => { state.history = []; saveState(); renderHistory(); });
-  els.closeDialogBtn.addEventListener('click', () => els.dialog.close());
+  els.closeDialogBtn.addEventListener('click', closeDialog);
   els.saveBtn.addEventListener('click', () => {
     const v = validateRange(els.minInput.value.trim(), els.maxInput.value.trim());
     if (!v.ok) { els.settingsError.textContent = v.error; return; }
@@ -511,7 +522,7 @@ function bindEvents() {
     if (noRepeatOn && (rangeChanged || !state.pool)) state.pool = buildPool(v.min, v.max);
     if (!noRepeatOn) state.pool = null;
     saveState();
-    els.dialog.close();
+    closeDialog();
     showToast('设置已保存');
   });
 }

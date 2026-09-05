@@ -129,6 +129,79 @@ dialog h2.sub { margin-top: 18px; }
 <script>
 'use strict';
 /*__PURE_START__*/
+function createStorage() {
+  try {
+    const t = '__rp_probe__';
+    globalThis.localStorage.setItem(t, '1');
+    globalThis.localStorage.removeItem(t);
+    return globalThis.localStorage;
+  } catch (e) {
+    const mem = new Map();
+    return {
+      getItem: (k) => (mem.has(k) ? mem.get(k) : null),
+      setItem: (k, v) => mem.set(k, String(v)),
+      removeItem: (k) => mem.delete(k),
+    };
+  }
+}
+
+function loadJSON(store, key, fallback) {
+  try {
+    const raw = store.getItem(key);
+    return raw == null ? fallback : JSON.parse(raw);
+  } catch (e) {
+    return fallback;
+  }
+}
+
+function saveJSON(store, key, value) {
+  try { store.setItem(key, JSON.stringify(value)); } catch (e) { /* 降级：不持久化 */ }
+}
+
+function randomInt(min, max, rng) {
+  const getRandom = rng || ((buf) => crypto.getRandomValues(buf));
+  const range = max - min + 1;
+  const limit = Math.floor(4294967296 / range) * range;
+  const buf = new Uint32Array(1);
+  let v;
+  do { getRandom(buf); v = buf[0]; } while (v >= limit);
+  return min + (v % range);
+}
+
+function validateRange(minVal, maxVal) {
+  const toInt = (v) => {
+    if (v === '' || v === null || v === undefined) return NaN;
+    const n = Number(v);
+    return Number.isInteger(n) ? n : NaN;
+  };
+  const min = toInt(minVal);
+  const max = toInt(maxVal);
+  if (Number.isNaN(min) || Number.isNaN(max)) return { ok: false, error: '请输入整数' };
+  if (min < 1 || max > 9999) return { ok: false, error: '范围需在 1–9999 之间' };
+  if (min > max) return { ok: false, error: '起始数字不能大于结束数字' };
+  return { ok: true, min, max };
+}
+
+function buildPool(min, max) {
+  const pool = [];
+  for (let n = min; n <= max; n++) pool.push(n);
+  return pool;
+}
+
+function drawFromPool(pool, rng) {
+  if (!pool.length) return null;
+  return pool[randomInt(0, pool.length - 1, rng)];
+}
+
+function removeFromPool(pool, value) {
+  const i = pool.indexOf(value);
+  if (i >= 0) pool.splice(i, 1);
+  return pool;
+}
+
+function pushHistory(list, value, cap = 20) {
+  return [value, ...list].slice(0, cap);
+}
 /*__PURE_END__*/
 </script>
 </body>

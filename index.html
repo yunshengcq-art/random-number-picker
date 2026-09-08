@@ -41,13 +41,16 @@ body.showing-result #resultScene { display: flex; }
   position: fixed; bottom: max(28px, env(safe-area-inset-bottom)); left: 0; right: 0;
   text-align: center; color: rgb(248 250 252 / .65); font-size: 17px; letter-spacing: .12em; pointer-events: none;
 }
-#gearBtn {
-  position: fixed; top: max(16px, env(safe-area-inset-top)); right: 16px; z-index: 5;
+#exitFullscreenBtn, #gearBtn {
+  position: fixed; top: max(16px, env(safe-area-inset-top)); z-index: 5;
   width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
   border: 0; background: rgb(15 23 42 / .42); backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center;
 }
-#gearBtn svg { width: 22px; height: 22px; fill: #f8fafc; }
+#exitFullscreenBtn { left: 16px; }
+#gearBtn { right: 16px; }
+#exitFullscreenBtn[hidden] { display: none; }
+#exitFullscreenBtn svg, #gearBtn svg { width: 22px; height: 22px; fill: #f8fafc; }
 #resultNum {
   font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; color: #1e293b;
   text-shadow: 0 10px 30px rgb(15 23 42 / .18); animation: pop .35s ease-out;
@@ -95,6 +98,9 @@ dialog h2.sub { margin-top: 18px; }
 </style>
 </head>
 <body>
+<button id="exitFullscreenBtn" aria-label="退出全屏" title="退出全屏" type="button" hidden>
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H7v4H3v2h6V3zm6 0v6h6V7h-4V3h-2zM3 15v2h4v4h2v-6H3zm14 2h4v-2h-6v6h2v-4z"/></svg>
+</button>
 <button id="gearBtn" aria-label="设置" type="button">
   <svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.24-1.13.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.65 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.07 7.07 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.23.4.32.6.22l2.39-.96c.5.39 1.05.7 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.58-.24 1.13-.55 1.63-.94l2.39.96c.2.1.47.01.6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
 </button>
@@ -241,7 +247,7 @@ const els = {
   maxInput: $('maxInput'), noRepeatChk: $('noRepeatChk'), poolRow: $('poolRow'),
   poolStatus: $('poolStatus'), poolResetBtn: $('poolResetBtn'), historyList: $('historyList'),
   clearHistoryBtn: $('clearHistoryBtn'), saveBtn: $('saveBtn'), closeDialogBtn: $('closeDialogBtn'),
-  settingsError: $('settingsError'), toast: $('toast'), gearBtn: $('gearBtn'),
+  settingsError: $('settingsError'), toast: $('toast'), gearBtn: $('gearBtn'), exitFullscreenBtn: $('exitFullscreenBtn'),
 };
 const ctx = els.canvas.getContext('2d');
 
@@ -441,6 +447,20 @@ function requestFullscreenOnce() {
   } catch (e) { /* 不支持则静默降级 */ }
 }
 
+function syncFullscreenUI() {
+  els.exitFullscreenBtn.hidden = !document.fullscreenElement;
+}
+
+function exitFullscreen(event) {
+  event.stopPropagation();
+  try {
+    const p = document.exitFullscreen?.();
+    if (p && p.catch) p.catch(() => syncFullscreenUI());
+  } catch (e) {
+    syncFullscreenUI();
+  }
+}
+
 function onTap() {
   if (els.dialog.open || state.spinning) return;
   requestFullscreenOnce();
@@ -503,7 +523,9 @@ function updatePoolUI(noRepeatPreview) {
 
 function bindEvents() {
   document.addEventListener('click', onTap);
+  document.addEventListener('fullscreenchange', syncFullscreenUI);
   window.addEventListener('resize', () => { resizeCanvas(); if (state.scene === 'result') fitResultFont(); });
+  els.exitFullscreenBtn.addEventListener('click', exitFullscreen);
   els.gearBtn.addEventListener('click', (e) => { e.stopPropagation(); openDialog(); });
   els.dialog.addEventListener('click', (e) => e.stopPropagation());
   els.noRepeatChk.addEventListener('change', () => updatePoolUI(els.noRepeatChk.checked));
@@ -530,6 +552,7 @@ function bindEvents() {
 function init() {
   loadState();
   bindEvents();
+  syncFullscreenUI();
   renderHistory();
   resizeCanvas();
 }
